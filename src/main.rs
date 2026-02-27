@@ -67,7 +67,7 @@ fn load_config() -> Config {
     let session_secret = env::var("SESSION_SECRET").unwrap_or_else(|_| {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+        let bytes: Vec<u8> = (0..32).map(|_| rng.r#gen()).collect();
         hex::encode(bytes)
     });
 
@@ -259,7 +259,7 @@ async fn handle_live_tts_with_auth(
     };
 
     // Upgrade with the accepted subprotocol
-    ws.protocols([valid_protocol.as_str()])
+    ws.protocols([valid_protocol.clone()])
         .on_upgrade(move |socket| async move {
             proxy_tts_websocket(socket, config, params).await;
         })
@@ -333,7 +333,7 @@ async fn proxy_tts_websocket(client_ws: WebSocket, config: Arc<Config>, params: 
                     }
                 }
                 Ok(tungstenite::Message::Text(text)) => {
-                    if client_sender.send(Message::Text(text.into())).await.is_err() {
+                    if client_sender.send(Message::Text(text.to_string().into())).await.is_err() {
                         eprintln!("Error forwarding text to client");
                         break;
                     }
@@ -341,7 +341,7 @@ async fn proxy_tts_websocket(client_ws: WebSocket, config: Arc<Config>, params: 
                 Ok(tungstenite::Message::Close(frame)) => {
                     let close_frame = frame.map(|f| axum::extract::ws::CloseFrame {
                         code: f.code.into(),
-                        reason: f.reason.into(),
+                        reason: f.reason.to_string().into(),
                     });
                     let _ = client_sender.send(Message::Close(close_frame)).await;
                     println!("Deepgram connection closed normally");
@@ -384,7 +384,7 @@ async fn proxy_tts_websocket(client_ws: WebSocket, config: Arc<Config>, params: 
                 }
                 Ok(Message::Text(text)) => {
                     if deepgram_sender
-                        .send(tungstenite::Message::Text(text.into()))
+                        .send(tungstenite::Message::Text(text.to_string().into()))
                         .await
                         .is_err()
                     {
